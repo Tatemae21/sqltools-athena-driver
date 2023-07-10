@@ -65,12 +65,14 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       }
     }).promise();
 
+    const bytesScanned = queryCheckExecution.QueryExecution.Statistics.DataScannedInBytes;
+
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
 
     let queryCheckExecution;
 
     do {
-      queryCheckExecution = await db.getQueryExecution({ 
+      queryCheckExecution = await db.getQueryExecution({
         QueryExecutionId: queryExecution.QueryExecutionId,
       }).promise();
 
@@ -98,11 +100,11 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       results.push(result);
     } while (nextToken);
 
-    return results;
+    return { results, bytesScanned };
   }
 
   public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
-    const results = await this.rawQuery(queries.toString());
+    const { results, bytesScanned } = await this.rawQuery(queries.toString());
     const columns = results[0].ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
     const resultSet = [];
     results.forEach((result, i) => {
@@ -123,7 +125,10 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     const response: NSDatabase.IResult[] = [{
       cols: columns,
       connId: this.getId(),
-      messages: [{ date: new Date(), message: `Query ok with ${resultSet.length} results`}],
+      messages: [
+        { date: new Date(), message: `Query ok with ${resultSet.length} results` },
+        { date: new Date(), message: `Data scanned: ${bytesScanned / (1024 * 1024 * 1024)} GB` }  // Add scanned data message
+      ],
       results: resultSet,
       query: queries.toString(),
       requestId: opt.requestId,
@@ -188,7 +193,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       case ContextValue.RESOURCE_GROUP:
         return this.getChildrenForGroup({ item, parent });
     }
-    
+
     return [];
   }
 
@@ -198,7 +203,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
    */
   private async getChildrenForGroup({ parent, item }: Arg0<IConnectionDriver['getChildrenForItem']>) {
     const db = await this.connection;
-    
+
     switch (item.childType) {
       case ContextValue.SCHEMA:
         const catalogs = await db.listDataCatalogs().promise();
@@ -211,10 +216,10 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           childType: ContextValue.DATABASE,
         }));
       case ContextValue.DATABASE:
-        let databaseList = [];          
-        let firstBatch:boolean = true;
-        let nextToken:string|null = null;
-        
+        let databaseList = [];
+        let firstBatch: boolean = true;
+        let nextToken: string | null = null;
+
         while (firstBatch == true || nextToken !== null) {
           firstBatch = false;
           let listDbRequest = {
@@ -255,7 +260,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           }));
       case ContextValue.VIEW:
         const views2 = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
-        
+
         return views2[0].ResultSet.Rows.map((row) => ({
           database: parent.database,
           label: row.Data[0].VarCharValue,
@@ -281,7 +286,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           type: itemType,
           schema: 'fakeschema',
           childType: ContextValue.COLUMN,
-        },{
+        }, {
           database: 'fakedb',
           label: `${search || 'table'}${j++}`,
           type: itemType,
@@ -308,7 +313,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -318,7 +323,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -328,7 +333,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
@@ -338,7 +343,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             isNullable: false,
             iconName: 'column',
             table: 'fakeTable'
-          },{
+          }, {
             database: 'fakedb',
             label: `${search || 'column'}${i++}`,
             type: ContextValue.COLUMN,
