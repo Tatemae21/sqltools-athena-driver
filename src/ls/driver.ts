@@ -65,8 +65,6 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       }
     }).promise();
 
-    const bytesScanned = queryCheckExecution.QueryExecution.Statistics.DataScannedInBytes;
-
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
 
     let queryCheckExecution;
@@ -85,8 +83,9 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
 
     const results: PromiseResult<GetQueryResultsOutput, AWSError>[] = [];
     let result: PromiseResult<GetQueryResultsOutput, AWSError>;
-    let nextToken: string | null = null;
 
+    let nextToken: string | null = null;
+    const bytesScanned = queryCheckExecution.QueryExecution.Statistics.DataScannedInBytes;
     do {
       const payload: GetQueryResultsInput = {
         QueryExecutionId: queryExecution.QueryExecutionId
@@ -127,7 +126,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       connId: this.getId(),
       messages: [
         { date: new Date(), message: `Query ok with ${resultSet.length} results` },
-        { date: new Date(), message: `Data scanned: ${bytesScanned / (1024 * 1024 * 1024)} GB` }  // Add scanned data message
+        { date: new Date(), message: `Data scanned: ${(bytesScanned / (1024 * 1024 * 1024)).toFixed(2)} GB` }  // Add scanned data message
       ],
       results: resultSet,
       query: queries.toString(),
